@@ -1,5 +1,5 @@
-// #![warn(clippy::pedantic)]
-#![allow(unused)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::unnecessary_wraps)]
 
 use clap::{App, Arg, ArgMatches};
 use mdbook::book::{Book, Chapter};
@@ -42,7 +42,6 @@ impl Preprocessor for Classy {
 #[derive(Debug)]
 struct Annotation {
     pub attr_list_def: AttrListDef,
-    pub index: usize,
     pub paragraph_start: usize,
     pub paragraph_end: Option<usize>,
 }
@@ -63,17 +62,12 @@ fn classy(chapter: &mut Chapter) -> Result<(), Error> {
             Event::Text(CowStr::Borrowed(text)) => {
                 if i > 0 {
                     if let Event::Start(Tag::Paragraph) = incoming_events[i - 1] {
-                        let v: Vec<_> = text.split("").collect();
-                        let len_v = v.len();
-                        if v[..3].join("") == "{:" && v[(len_v - 2)..].join("") == "}" {
-                            let (_, ald) = attr_list_def(text).unwrap();
-                            // let class = v[4..(len_v - 2)].join("");
+                        if let Ok((_, ald)) = attr_list_def(text) {
                             class_annotations.push(Annotation {
                                 attr_list_def: ald,
-                                index: i,
                                 paragraph_start: i - 1,
                                 paragraph_end: None,
-                            })
+                            });
                         }
                     }
                 }
@@ -105,10 +99,10 @@ fn classy(chapter: &mut Chapter) -> Result<(), Error> {
 
         last_end = ca.paragraph_end.unwrap_or(incoming_events.len() - 1);
 
-        let paragraph = &incoming_events[ca.paragraph_start..(last_end + 1)];
+        let paragraph = &incoming_events[ca.paragraph_start..=last_end];
 
         // Add <div class="class-name">
-        slices.push(&div_starts[i..i + 1]);
+        slices.push(&div_starts[i..=i]);
 
         // Add paragraph opener.
         slices.push(&paragraph[0..1]);
