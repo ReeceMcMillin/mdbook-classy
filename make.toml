@@ -1,0 +1,22 @@
+[tasks.format]
+command = "cargo"
+args = ["fmt"]
+
+[tasks.clippy]
+command = "cargo"
+args = ["clippy"]
+
+[tasks.test]
+command = "cargo"
+args = ["test"]
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+dependencies = ["format", "clippy"]
+
+# [tasks.release]
+# dependencies = [
+#     "build",
+#     "test",
+# ]

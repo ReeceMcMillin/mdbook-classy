@@ -1,7 +1,11 @@
-use clap::{App, Arg, ArgMatches, SubCommand};
+// #![warn(clippy::pedantic)]
+#![allow(unused)]
+
+use clap::{App, Arg, ArgMatches};
 use mdbook::book::{Book, Chapter};
 use mdbook::errors::Error;
 use mdbook::preprocess::{CmdPreprocessor, Preprocessor, PreprocessorContext};
+use mdbook_classy::{attr_list_def, AttrListDef};
 use pulldown_cmark::{CowStr, Event, Parser, Tag};
 use std::io;
 use std::process;
@@ -10,6 +14,7 @@ use std::process;
 pub struct Classy;
 
 impl Classy {
+    #[must_use]
     pub fn new() -> Classy {
         Classy
     }
@@ -35,8 +40,8 @@ impl Preprocessor for Classy {
 }
 
 #[derive(Debug)]
-struct ClassAnnotation {
-    pub class: String,
+struct Annotation {
+    pub attr_list_def: AttrListDef,
     pub index: usize,
     pub paragraph_start: usize,
     pub paragraph_end: Option<usize>,
@@ -51,7 +56,7 @@ fn classy(chapter: &mut Chapter) -> Result<(), Error> {
 
     // 2. Find paragraphs beginning with the class annotator `{:.class-name}` and record their information in
     // a vector of ClassAnnotation structs.
-    let mut class_annotations: Vec<ClassAnnotation> = vec![];
+    let mut class_annotations: Vec<Annotation> = vec![];
     for i in 0..incoming_events.len() {
         let event = &incoming_events[i];
         match *event {
@@ -60,10 +65,11 @@ fn classy(chapter: &mut Chapter) -> Result<(), Error> {
                     if let Event::Start(Tag::Paragraph) = incoming_events[i - 1] {
                         let v: Vec<_> = text.split("").collect();
                         let len_v = v.len();
-                        if v[..4].join("") == "{:." && v[(len_v - 2)..].join("") == "}" {
-                            let class = v[4..(len_v - 2)].join("");
-                            class_annotations.push(ClassAnnotation {
-                                class,
+                        if v[..3].join("") == "{:" && v[(len_v - 2)..].join("") == "}" {
+                            let (_, ald) = attr_list_def(text).unwrap();
+                            // let class = v[4..(len_v - 2)].join("");
+                            class_annotations.push(Annotation {
+                                attr_list_def: ald,
                                 index: i,
                                 paragraph_start: i - 1,
                                 paragraph_end: None,
@@ -90,7 +96,7 @@ fn classy(chapter: &mut Chapter) -> Result<(), Error> {
     let mut last_end = 0;
     let div_starts: Vec<Event> = class_annotations
         .iter()
-        .map(|ca| Event::Html(CowStr::from(format!("<div class=\"{}\">", ca.class))))
+        .map(|ca| Event::Html(CowStr::from(format!("{}", ca.attr_list_def))))
         .collect();
     let div_end: Vec<Event> = vec![Event::Html(CowStr::from("</div>"))];
     for (i, ca) in class_annotations.iter().enumerate() {
@@ -151,7 +157,7 @@ fn handle_preprocessing(pre: &dyn Preprocessor) -> Result<(), Error> {
 /// Check to see if we support the processor (classy only supports html right now)
 fn handle_supports(pre: &dyn Preprocessor, sub_args: &ArgMatches) -> ! {
     let renderer = sub_args.value_of("renderer").expect("Required argument");
-    let supported = pre.supports_renderer(&renderer);
+    let supported = pre.supports_renderer(renderer);
 
     if supported {
         process::exit(0);
@@ -165,8 +171,8 @@ fn main() {
     let matches = App::new("classy")
         .about("A mdbook preprocessor that recognizes kramdown style paragraph class annotation.")
         .subcommand(
-            SubCommand::with_name("supports")
-                .arg(Arg::with_name("renderer").required(true))
+            App::new("supports")
+                .arg(Arg::new("renderer").required(true))
                 .about("Check whether a renderer is supported by this preprocessor"),
         )
         .get_matches();
